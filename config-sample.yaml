@@ -1,0 +1,4 @@
+# mofify name to config.yaml
+organization: sample
+address: https://app.terraform.io
+token: sample

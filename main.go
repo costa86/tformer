@@ -15,19 +15,34 @@ import (
 	runMod "github.com/costa86/tformer/run"
 	userMod "github.com/costa86/tformer/user"
 	wsMod "github.com/costa86/tformer/workspace"
-
 	tfe "github.com/hashicorp/go-tfe"
+	"gopkg.in/yaml.v2"
 )
 
 var placeholder = "sample"
-var token = flag.String("token", placeholder, "authentication API token")
-var address = flag.String("address", "https://app.terraform.io", "terraform address")
+var configFile = "config.yaml"
+
+func getTfConfig() helper.TfConfig {
+	yamlFile, err := os.ReadFile(configFile)
+	if err != nil {
+		panic(err)
+	}
+
+	var tfConfig helper.TfConfig
+	err = yaml.Unmarshal(yamlFile, &tfConfig)
+	if err != nil {
+		panic(err)
+	}
+	return tfConfig
+}
 
 func getClient() *tfe.Client {
+	tfConfig := getTfConfig()
+
 	config := &tfe.Config{
-		Token:             *token,
+		Token:             tfConfig.Token,
 		RetryServerErrors: true,
-		Address:           *address,
+		Address:           tfConfig.Address,
 	}
 
 	client, err := tfe.NewClient(config)
@@ -38,61 +53,92 @@ func getClient() *tfe.Client {
 }
 
 func wsList() {
-	fmt.Println("List workspaces for an Organization")
+	org := getTfConfig().Organization
+	fmt.Println("List workspaces for Organization")
 	wsCmd := flag.NewFlagSet("ws_list", flag.ExitOnError)
-	org := wsCmd.String("org", placeholder, "organization name")
 	asJson := wsCmd.Bool("json", false, "output as json")
 
 	wsCmd.Parse(flag.Args()[1:])
-	wsMod.List(getClient(), *org, *asJson)
+	wsMod.List(getClient(), org, *asJson)
 }
+
 func wsCreate() {
+	org := getTfConfig().Organization
 	fmt.Println("Create Workspace")
 	cmd := flag.NewFlagSet("ws_create", flag.ExitOnError)
-	org := cmd.String("org", placeholder, "organization name")
 	name := cmd.String("name", placeholder, "workspace name")
 
 	cmd.Parse(flag.Args()[1:])
-	wsMod.Create(*getClient(), *org, *name)
+	wsMod.Create(*getClient(), org, *name)
 }
+
 func wsLock() {
 	fmt.Println("Lock Workspace")
 	cmd := flag.NewFlagSet("ws_lock", flag.ExitOnError)
-	id := cmd.String("id", placeholder, "Workspace id")
+	name := cmd.String("name", placeholder, "workspace name")
+	org := getTfConfig().Organization
 
 	cmd.Parse(flag.Args()[1:])
-	wsMod.Lock(*getClient(), *id)
+	wsMod.LockOrUnlock(*getClient(), *name, org, true)
 }
+func wsLockAll() {
+	fmt.Println("Lock all Workspaces")
+	cmd := flag.NewFlagSet("ws_lock_all", flag.ExitOnError)
+	org := getTfConfig().Organization
+
+	cmd.Parse(flag.Args()[1:])
+	wsMod.LockOrUnlockAll(*getClient(), org, true)
+}
+
+func wsUnlockAll() {
+	fmt.Println("Unlock all Workspaces")
+	cmd := flag.NewFlagSet("ws_unlock_all", flag.ExitOnError)
+	org := getTfConfig().Organization
+
+	cmd.Parse(flag.Args()[1:])
+	wsMod.LockOrUnlockAll(*getClient(), org, false)
+}
+
+func wsUnlock() {
+	fmt.Println("Unlock Workspace")
+	cmd := flag.NewFlagSet("ws_lock", flag.ExitOnError)
+	name := cmd.String("name", placeholder, "workspace name")
+	org := getTfConfig().Organization
+
+	cmd.Parse(flag.Args()[1:])
+	wsMod.LockOrUnlock(*getClient(), *name, org, false)
+}
+
 func wsDelete() {
 	fmt.Println("Delete Workspace")
 	cmd := flag.NewFlagSet("ws_delete", flag.ExitOnError)
-	id := cmd.String("id", placeholder, "Workspace id")
+	name := cmd.String("name", placeholder, "workspace name")
 
 	cmd.Parse(flag.Args()[1:])
-	wsMod.Delete(*getClient(), *id)
+	wsMod.Delete(*getClient(), *name, getTfConfig().Organization)
 }
+
 func wsPurge() {
 	fmt.Println("Delete all Workspaces")
 	cmd := flag.NewFlagSet("ws_purge", flag.ExitOnError)
-	orgName := cmd.String("org_name", placeholder, "Organization name")
 
 	cmd.Parse(flag.Args()[1:])
-	wsMod.Purge(*getClient(), *orgName)
+	wsMod.Purge(*getClient(), getTfConfig().Organization)
 }
 
 func cvList() {
 	fmt.Println("List Configuration Versions")
-	cmd := flag.NewFlagSet("ws_lock", flag.ExitOnError)
-	id := cmd.String("ws_id", placeholder, "Workspace id")
+	cmd := flag.NewFlagSet("cv_list", flag.ExitOnError)
+	ws := cmd.String("ws", placeholder, "workspace name")
 
 	cmd.Parse(flag.Args()[1:])
-	configVerMod.List(getClient(), *id)
+	configVerMod.List(getClient(), *ws, getTfConfig().Organization)
 }
 
 func cvDownload() {
 	fmt.Println("Download Configuration Version")
-	cmd := flag.NewFlagSet("ws_lock", flag.ExitOnError)
-	id := cmd.String("id", placeholder, "Workspace id")
+	cmd := flag.NewFlagSet("cv_download", flag.ExitOnError)
+	id := cmd.String("id", placeholder, "configuration version id")
 
 	cmd.Parse(flag.Args()[1:])
 	configVerMod.Download(getClient(), *id)
@@ -133,19 +179,19 @@ func orgCreate() {
 func runList() {
 	fmt.Println("List Runs")
 	cmd := flag.NewFlagSet("run_list", flag.ExitOnError)
-	wsId := cmd.String("ws_id", placeholder, "workspace ID")
+	ws := cmd.String("ws", placeholder, "workspace name")
 	cmd.Parse(flag.Args()[1:])
 
-	runMod.List(getClient(), *wsId)
+	runMod.List(getClient(), *ws, getTfConfig().Organization)
 }
 
 func varList() {
 	fmt.Println("List Vars")
 	cmd := flag.NewFlagSet("var_list", flag.ExitOnError)
-	wsId := cmd.String("ws_id", placeholder, "workspace ID")
+	ws := cmd.String("ws", placeholder, "workspace name")
 	cmd.Parse(flag.Args()[1:])
 
-	varMod.List(getClient(), *wsId)
+	varMod.List(getClient(), *ws, getTfConfig().Organization)
 }
 func varDelete() {
 	fmt.Println("Delete Var")
@@ -158,22 +204,47 @@ func varDelete() {
 	varMod.Delete(*getClient(), *wsId, *varId)
 }
 
-func runCreate() {
-	fmt.Println("Create Run")
+func getRunFlags(title string) (string, string, string, bool) {
+	fmt.Println(title)
 	cmd := flag.NewFlagSet("run_create", flag.ExitOnError)
-	wsId := cmd.String("ws_id", placeholder, "workspace ID")
+	wsName := cmd.String("ws", placeholder, "workspace name")
+	message := cmd.String("msg", placeholder, "message")
+	dir := cmd.String("dir", placeholder, "dir")
+	autoApply := cmd.Bool("aa", true, "auto-apply")
 
 	cmd.Parse(flag.Args()[1:])
 
-	dir := cmd.Args()
+	return *wsName, *message, *dir, *autoApply
 
-	runMod.Create(*getClient(), *wsId, dir)
+}
+
+func runCreate() {
+	wsName, message, dir, autoApply := getRunFlags("Create Run")
+	ws := wsMod.GetByName(*getClient(), getTfConfig().Organization, wsName)
+	runMod.CreateOrDestroy(*getClient(), ws.ID, message, dir, autoApply, false)
+}
+func runDestoy() {
+	wsName, message, dir, autoApply := getRunFlags("Destroy Run")
+	ws := wsMod.GetByName(*getClient(), getTfConfig().Organization, wsName)
+	runMod.CreateOrDestroy(*getClient(), ws.ID, message, dir, autoApply, true)
+}
+
+func sample() {
+	fmt.Println("sample")
+	cmd := flag.NewFlagSet("sample", flag.ExitOnError)
+	autoApply := cmd.Bool("apply", true, "auto-apply")
+	other := cmd.Int("other", 1, "other")
+
+	cmd.Parse(flag.Args()[1:])
+	println(*autoApply)
+	println(*other)
+
 }
 
 func varCreate() {
 	fmt.Println("Create Variable")
 	cmd := flag.NewFlagSet("var_create", flag.ExitOnError)
-	wsId := cmd.String("ws_id", placeholder, "workspace id")
+	ws := cmd.String("ws", placeholder, "workspace name")
 	key := cmd.String("key", placeholder, "key")
 	value := cmd.String("value", placeholder, "value")
 	description := cmd.String("description", placeholder, "description")
@@ -184,6 +255,7 @@ func varCreate() {
 	cmd.Parse(flag.Args()[1:])
 
 	validCategories := []string{"terraform", "env"}
+
 	if !helper.Contains(validCategories, *category) {
 		fmt.Println("[ERROR] Category must be in:", strings.Join(validCategories, ","))
 		os.Exit(0)
@@ -197,18 +269,19 @@ func varCreate() {
 		Sensitive:   *sensitive,
 		HCL:         *hcl,
 	}
-	varMod.Create(*getClient(), *wsId, variable)
+	varMod.Create(*getClient(), *ws, getTfConfig().Organization, variable)
 }
 
 func main() {
 	flag.Usage = func() {
-		fmt.Println("* Usage: <common tags> <command> <command tags>\n* Common tags:")
+		fmt.Printf("* Usage: <command> <command flags>\n* Make sure '%s' exists in the current dir\n", configFile)
 		flag.PrintDefaults()
-		fmt.Println("* Commands (use <command> -h for the tags):")
+		fmt.Println("* Commands (use <command> -h for the flags):")
 		//ws
 		fmt.Println("ws_list")
 		fmt.Println("ws_create")
 		fmt.Println("ws_lock")
+		fmt.Println("ws_unlock")
 		fmt.Println("ws_delete")
 		fmt.Println("ws_purge")
 		//var
@@ -219,13 +292,12 @@ func main() {
 		fmt.Println("org_list")
 		fmt.Println("org_create")
 		fmt.Println("org_delete")
-
 		//run
 		fmt.Println("run_list")
 		fmt.Println("run_create")
+		fmt.Println("run_destroy")
 		//cv
 		fmt.Println("cv_list")
-		fmt.Println("cv_download")
 		//user
 		fmt.Println("whoami")
 
@@ -246,7 +318,12 @@ func main() {
 		wsCreate()
 	case "ws_lock":
 		wsLock()
-
+	case "ws_unlock":
+		wsUnlock()
+	case "ws_lock_all":
+		wsLockAll()
+	case "ws_unlock_all":
+		wsUnlockAll()
 	case "ws_delete":
 		wsDelete()
 	case "ws_purge":
@@ -263,7 +340,6 @@ func main() {
 		orgCreate()
 	case "org_delete":
 		orgDelete()
-
 	case "cv_list":
 		cvList()
 	case "cv_download":
@@ -272,9 +348,12 @@ func main() {
 		runList()
 	case "run_create":
 		runCreate()
+	case "run_destroy":
+		runDestoy()
 	case "whoami":
 		userGetMe()
-
+	case "sample":
+		sample()
 	default:
 		flag.PrintDefaults()
 		os.Exit(0)

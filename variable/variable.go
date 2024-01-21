@@ -5,16 +5,19 @@ import (
 	"fmt"
 	"log"
 
+	wsMod "github.com/costa86/tformer/workspace"
+
 	"github.com/costa86/tformer/helper"
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-tfe"
 	"github.com/rodaine/table"
 )
 
-func Create(client tfe.Client, workspaceId string, variable helper.Variable) {
+func update(client tfe.Client, workspaceName string, org string, id string, variable helper.Variable) {
 	ctx := context.Background()
+	ws := wsMod.GetByName(client, org, workspaceName)
 
-	result, err := client.Variables.Create(ctx, workspaceId, tfe.VariableCreateOptions{
+	result, err := client.Variables.Update(ctx, ws.ID, id, tfe.VariableUpdateOptions{
 		Type:        "vars",
 		Key:         tfe.String(variable.Key),
 		Value:       tfe.String(variable.Value),
@@ -22,21 +25,48 @@ func Create(client tfe.Client, workspaceId string, variable helper.Variable) {
 		Category:    tfe.Category(tfe.CategoryType(variable.Category)),
 		HCL:         tfe.Bool(variable.HCL),
 		Sensitive:   tfe.Bool(variable.Sensitive)})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("Variable created: %s", result.Key)
+
+	helper.HandleError(err)
+	fmt.Printf("Variable updated: %s", result.Key)
 }
 
-func listVariables(client tfe.Client, workspaceId string) *tfe.VariableList {
+func listVariables(client tfe.Client, workspaceName, org string) *tfe.VariableList {
 	ctx := context.Background()
+	ws := wsMod.GetByName(client, org, workspaceName)
 
-	result, err := client.Variables.List(ctx, workspaceId, nil)
+	result, err := client.Variables.List(ctx, ws.ID, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 	return result
 }
+
+func Create(client tfe.Client, workspaceName string, org string, variable helper.Variable) {
+	ctx := context.Background()
+	ws := wsMod.GetByName(client, org, workspaceName)
+
+	variables := listVariables(client, workspaceName, org)
+	for _, v := range variables.Items {
+
+		if v.Key == variable.Key {
+			update(client, workspaceName, org, v.ID, variable)
+			return
+		}
+	}
+
+	result, err := client.Variables.Create(ctx, ws.ID, tfe.VariableCreateOptions{
+		Type:        "vars",
+		Key:         tfe.String(variable.Key),
+		Value:       tfe.String(variable.Value),
+		Description: tfe.String(variable.Description),
+		Category:    tfe.Category(tfe.CategoryType(variable.Category)),
+		HCL:         tfe.Bool(variable.HCL),
+		Sensitive:   tfe.Bool(variable.Sensitive)})
+
+	helper.HandleError(err)
+	fmt.Printf("Variable created: %s", result.Key)
+}
+
 func Delete(client tfe.Client, workspaceId, variableId string) {
 	ctx := context.Background()
 
@@ -47,8 +77,8 @@ func Delete(client tfe.Client, workspaceId, variableId string) {
 	fmt.Printf("Variable deleted: %s", variableId)
 }
 
-func List(client *tfe.Client, name string) {
-	list := listVariables(*client, name)
+func List(client *tfe.Client, name, org string) {
+	list := listVariables(*client, name, org)
 	headerFmt := color.New(color.FgMagenta, color.Underline).SprintfFunc()
 	columnFmt := color.New(color.FgYellow).SprintfFunc()
 

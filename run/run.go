@@ -2,37 +2,74 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
+	"github.com/costa86/tformer/workspace"
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-tfe"
 	"github.com/rodaine/table"
 )
 
-func Create(client tfe.Client, workspaceId string, targetDir []string) *tfe.Run {
+func createOrReadConfigurationVersion(ctx context.Context, client *tfe.Client, workspaceID string, cvID string, tfDirectory string, speculative bool) (*tfe.ConfigurationVersion, error) {
+	var err error
+	var cv *tfe.ConfigurationVersion
+
+	if cvID == "" {
+		fmt.Print("Creating new Config Version ...")
+		cv, err = client.ConfigurationVersions.Create(ctx, workspaceID, tfe.ConfigurationVersionCreateOptions{
+			AutoQueueRuns: tfe.Bool(false),
+			Speculative:   tfe.Bool(speculative),
+		})
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println(" ID:", color.BlueString(cv.ID))
+
+		err = client.ConfigurationVersions.Upload(ctx, cv.UploadURL, tfDirectory)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		fmt.Println("Using existing Config Version ...", cvID)
+		cv, err = client.ConfigurationVersions.Read(ctx, cvID)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println(" ID:", color.BlueString(cv.ID), " Status: ", color.BlueString(string(cv.Status)))
+		if cv.Status != "uploaded" {
+			return nil, errors.New("provider configuration version is not allowed")
+		}
+	}
+
+	return cv, nil
+}
+
+func CreateOrDestroy(client tfe.Client, workspaceId, message string, dir string, autoApply bool, isDestroy bool) *tfe.Run {
 	ctx := context.Background()
 	ws, err := client.Workspaces.ReadByID(ctx, workspaceId)
 
 	if err != nil {
-		fmt.Println("ff")
 		log.Fatal(err)
 	}
-	fmt.Println(ws.CreatedAt)
 
-	result, err := client.Runs.Create(ctx, tfe.RunCreateOptions{
-		TargetAddrs:          targetDir,
-		Workspace:            ws,
-		ConfigurationVersion: &tfe.ConfigurationVersion{AutoQueueRuns: true},
-		IsDestroy:            tfe.Bool(false),
-		Message:              tfe.String("hello")})
+	cv, err := createOrReadConfigurationVersion(ctx, &client, workspaceId, "", dir, false)
 
 	if err != nil {
-		fmt.Println("pp")
-
 		log.Fatal(err)
 	}
 
+	result, err := client.Runs.Create(ctx, tfe.RunCreateOptions{
+		AutoApply:            tfe.Bool(autoApply),
+		Workspace:            ws,
+		ConfigurationVersion: cv,
+		IsDestroy:            tfe.Bool(isDestroy),
+		Message:              tfe.String(message)})
+
+	if err != nil {
+		log.Fatal(err)
+	}
 	return result
 
 }
@@ -47,8 +84,9 @@ func listRun(client tfe.Client, workspaceId string) *tfe.RunList {
 	return result
 
 }
-func List(client *tfe.Client, workspaceId string) {
-	list := listRun(*client, workspaceId)
+func List(client *tfe.Client, workspaceName, org string) {
+	ws := workspace.GetByName(*client, org, workspaceName)
+	list := listRun(*client, ws.ID)
 	headerFmt := color.New(color.FgMagenta, color.Underline).SprintfFunc()
 	columnFmt := color.New(color.FgYellow).SprintfFunc()
 

@@ -6,20 +6,64 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/costa86/tformer/helper"
+
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-tfe"
 	"github.com/rodaine/table"
 )
 
-func Lock(client tfe.Client, id string) {
+func GetByName(client tfe.Client, org, name string) *tfe.Workspace {
+	ws, err := client.Workspaces.Read(context.Background(), org, name)
+	helper.HandleError(err)
+	return ws
+
+}
+
+func LockOrUnlock(client tfe.Client, name, org string, lock bool) {
 	ctx := context.Background()
 
-	result, err := client.Workspaces.Lock(ctx, id, tfe.WorkspaceLockOptions{})
+	ws := GetByName(client, org, name)
+	var result *tfe.Workspace
+	var err error
+	var action = "locked"
 
-	if err != nil {
-		log.Fatal(err)
+	if lock {
+		result, err = client.Workspaces.Lock(ctx, ws.ID, tfe.WorkspaceLockOptions{})
+		helper.HandleError(err)
+	} else {
+		result, err = client.Workspaces.Unlock(ctx, ws.ID)
+		helper.HandleError(err)
+		action = "unlocked"
 	}
-	fmt.Printf("Workspace locked %s by %s", result.Name, result.LockedBy.User.Email)
+
+	fmt.Printf("Workspace %s %s ", result.Name, action)
+
+}
+func LockOrUnlockAll(client tfe.Client, org string, lock bool) {
+	ctx := context.Background()
+
+	list := listWorkspaces(client, org)
+	var action = "locked"
+
+	if lock {
+		for _, v := range list.Items {
+			res, err := client.Workspaces.Lock(ctx, v.ID, tfe.WorkspaceLockOptions{})
+			helper.HandleError(err)
+			fmt.Printf("Workspace %s locked ", res.Name)
+
+		}
+	} else {
+		action = "unlocked"
+		for _, v := range list.Items {
+			res, err := client.Workspaces.Unlock(ctx, v.ID)
+			helper.HandleError(err)
+			fmt.Printf("Workspace %s unlocked ", res.Name)
+
+		}
+	}
+
+	fmt.Printf("%d workspaces %s ", len(list.Items), action)
 
 }
 
@@ -27,9 +71,7 @@ func listWorkspaces(client tfe.Client, orgName string) *tfe.WorkspaceList {
 	ctx := context.Background()
 
 	result, err := client.Workspaces.List(ctx, orgName, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
+	helper.HandleError(err)
 	return result
 
 }
@@ -38,9 +80,7 @@ func List(client *tfe.Client, name string, asJson bool) {
 
 	if asJson {
 		userJSON, err := json.MarshalIndent(list.Items, "", "    ")
-		if err != nil {
-			log.Fatal(err)
-		}
+		helper.HandleError(err)
 
 		log.Printf("%s", userJSON)
 		return
@@ -49,11 +89,11 @@ func List(client *tfe.Client, name string, asJson bool) {
 	headerFmt := color.New(color.FgMagenta, color.Underline).SprintfFunc()
 	columnFmt := color.New(color.FgYellow).SprintfFunc()
 
-	tbl := table.New("ID", "NAME", "TERRAFORM VERSION")
+	tbl := table.New("ID", "NAME", "TERRAFORM VERSION", "LOCKED")
 	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
 
 	for _, v := range list.Items {
-		tbl.AddRow(v.ID, v.Name, v.TerraformVersion)
+		tbl.AddRow(v.ID, v.Name, v.TerraformVersion, v.Locked)
 	}
 
 	tbl.Print()
@@ -63,21 +103,18 @@ func Create(client tfe.Client, organization, name string) {
 	ctx := context.Background()
 
 	result, err := client.Workspaces.Create(ctx, organization, tfe.WorkspaceCreateOptions{Name: tfe.String(name)})
-	if err != nil {
-		log.Fatal(err)
-	}
+	helper.HandleError(err)
 	fmt.Printf("Workspace created: %s", result.Name)
 
 }
 
-func Delete(client tfe.Client, id string) {
+func Delete(client tfe.Client, name, org string) {
 	ctx := context.Background()
+	ws := GetByName(client, org, name)
 
-	err := client.Workspaces.DeleteByID(ctx, id)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("Workspace deleted: %s", id)
+	err := client.Workspaces.DeleteByID(ctx, ws.ID)
+	helper.HandleError(err)
+	fmt.Printf("Workspace deleted: %s", ws.Name)
 
 }
 
@@ -86,9 +123,7 @@ func Purge(client tfe.Client, orgName string) {
 	workspaces := listWorkspaces(client, orgName)
 	for _, v := range workspaces.Items {
 		err := client.Workspaces.DeleteByID(ctx, v.ID)
-		if err != nil {
-			log.Fatal(err)
-		}
+		helper.HandleError(err)
 	}
 	fmt.Printf("All Workspace deleted")
 

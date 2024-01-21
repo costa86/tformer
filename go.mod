@@ -6,6 +6,7 @@ require (
 	github.com/fatih/color v1.16.0
 	github.com/hashicorp/go-tfe v1.42.0
 	github.com/rodaine/table v1.1.0
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
