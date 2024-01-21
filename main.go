@@ -186,7 +186,7 @@ func runList() {
 }
 
 func varList() {
-	fmt.Println("List Vars")
+	fmt.Println("List Variables")
 	cmd := flag.NewFlagSet("var_list", flag.ExitOnError)
 	ws := cmd.String("ws", placeholder, "workspace name")
 	cmd.Parse(flag.Args()[1:])
@@ -194,14 +194,14 @@ func varList() {
 	varMod.List(getClient(), *ws, getTfConfig().Organization)
 }
 func varDelete() {
-	fmt.Println("Delete Var")
+	fmt.Println("Delete Variable")
 	cmd := flag.NewFlagSet("var_delete", flag.ExitOnError)
-	wsId := cmd.String("ws_id", placeholder, "workspace ID")
-	varId := cmd.String("var_id", placeholder, "variable ID")
+	ws := cmd.String("ws", placeholder, "workspace name")
+	key := cmd.String("key", placeholder, "variable key")
 
 	cmd.Parse(flag.Args()[1:])
 
-	varMod.Delete(*getClient(), *wsId, *varId)
+	varMod.Delete(*getClient(), *ws, getTfConfig().Organization, *key)
 }
 
 func getRunFlags(title string) (string, string, string, bool) {

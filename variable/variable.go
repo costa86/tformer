@@ -44,10 +44,9 @@ func listVariables(client tfe.Client, workspaceName, org string) *tfe.VariableLi
 func Create(client tfe.Client, workspaceName string, org string, variable helper.Variable) {
 	ctx := context.Background()
 	ws := wsMod.GetByName(client, org, workspaceName)
-
 	variables := listVariables(client, workspaceName, org)
-	for _, v := range variables.Items {
 
+	for _, v := range variables.Items {
 		if v.Key == variable.Key {
 			update(client, workspaceName, org, v.ID, variable)
 			return
@@ -67,14 +66,19 @@ func Create(client tfe.Client, workspaceName string, org string, variable helper
 	fmt.Printf("Variable created: %s", result.Key)
 }
 
-func Delete(client tfe.Client, workspaceId, variableId string) {
+func Delete(client tfe.Client, workspaceName, orgNme, variableName string) {
 	ctx := context.Background()
+	ws := wsMod.GetByName(client, orgNme, workspaceName)
+	vars := listVariables(client, workspaceName, orgNme)
 
-	err := client.Variables.Delete(ctx, workspaceId, variableId)
-	if err != nil {
-		log.Fatal(err)
+	for _, v := range vars.Items {
+		if v.Key == variableName {
+			err := client.Variables.Delete(ctx, ws.ID, v.ID)
+			helper.HandleError(err)
+			fmt.Printf("Variable deleted: %s", variableName)
+			return
+		}
 	}
-	fmt.Printf("Variable deleted: %s", variableId)
 }
 
 func List(client *tfe.Client, name, org string) {
