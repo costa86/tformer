@@ -144,6 +144,15 @@ func cvDownload() {
 	configVerMod.Download(getClient(), *id)
 }
 
+func cvGet() {
+	fmt.Println("Get Configuration Version")
+	cmd := flag.NewFlagSet("cv_get", flag.ExitOnError)
+	id := cmd.String("id", placeholder, "configuration version id")
+
+	cmd.Parse(flag.Args()[1:])
+	configVerMod.Get(getClient(), *id)
+}
+
 func userGetMe() {
 	cmd := flag.NewFlagSet("whoami", flag.ExitOnError)
 
@@ -204,29 +213,38 @@ func varDelete() {
 	varMod.Delete(*getClient(), *ws, getTfConfig().Organization, *key)
 }
 
-func getRunFlags(title string) (string, string, string, bool) {
+func getRunFlags(title string) (string, string, string, bool, string) {
 	fmt.Println(title)
 	cmd := flag.NewFlagSet("run_create", flag.ExitOnError)
 	wsName := cmd.String("ws", placeholder, "workspace name")
 	message := cmd.String("msg", placeholder, "message")
 	dir := cmd.String("dir", placeholder, "dir")
-	autoApply := cmd.Bool("aa", true, "auto-apply")
+	autoApply := cmd.Bool("aa", false, "auto-apply")
+	cvId := cmd.String("cv_id", "latest", "configuration version id")
 
 	cmd.Parse(flag.Args()[1:])
 
-	return *wsName, *message, *dir, *autoApply
+	return *wsName, *message, *dir, *autoApply, *cvId
 
 }
 
 func runCreate() {
-	wsName, message, dir, autoApply := getRunFlags("Create Run")
+	wsName, message, dir, autoApply, cvId := getRunFlags("Create Run")
 	ws := wsMod.GetByName(*getClient(), getTfConfig().Organization, wsName)
-	runMod.CreateOrDestroy(*getClient(), ws.ID, message, dir, autoApply, false)
+	runMod.CreateOrDestroy(*getClient(), ws.ID, message, dir, autoApply, false, cvId)
 }
 func runDestoy() {
-	wsName, message, dir, autoApply := getRunFlags("Destroy Run")
+	wsName, message, dir, autoApply, cvId := getRunFlags("Destroy Run")
 	ws := wsMod.GetByName(*getClient(), getTfConfig().Organization, wsName)
-	runMod.CreateOrDestroy(*getClient(), ws.ID, message, dir, autoApply, true)
+	runMod.CreateOrDestroy(*getClient(), ws.ID, message, dir, autoApply, true, cvId)
+
+}
+func runGet() {
+	fmt.Println("Get Run")
+	cmd := flag.NewFlagSet("run_get", flag.ExitOnError)
+	id := cmd.String("id", placeholder, "run id")
+	cmd.Parse(flag.Args()[1:])
+	runMod.Get(*getClient(), *id)
 }
 
 func sample() {
@@ -281,7 +299,9 @@ func main() {
 		fmt.Println("ws_list")
 		fmt.Println("ws_create")
 		fmt.Println("ws_lock")
+		fmt.Println("ws_lock_all")
 		fmt.Println("ws_unlock")
+		fmt.Println("ws_unlock_all")
 		fmt.Println("ws_delete")
 		fmt.Println("ws_purge")
 		//var
@@ -296,8 +316,11 @@ func main() {
 		fmt.Println("run_list")
 		fmt.Println("run_create")
 		fmt.Println("run_destroy")
+		fmt.Println("run_get")
 		//cv
 		fmt.Println("cv_list")
+		fmt.Println("cv_download")
+		fmt.Println("cv_get")
 		//user
 		fmt.Println("whoami")
 
@@ -311,7 +334,7 @@ func main() {
 	flag.Parse()
 
 	switch flag.Arg(0) {
-
+	// ws
 	case "ws_list":
 		wsList()
 	case "ws_create":
@@ -328,28 +351,37 @@ func main() {
 		wsDelete()
 	case "ws_purge":
 		wsPurge()
+	// var
 	case "var_create":
 		varCreate()
 	case "var_list":
 		varList()
 	case "var_delete":
 		varDelete()
+	// org
 	case "org_list":
 		orgList()
 	case "org_create":
 		orgCreate()
 	case "org_delete":
 		orgDelete()
+	// cv
 	case "cv_list":
 		cvList()
 	case "cv_download":
 		cvDownload()
+	case "cv_get":
+		cvGet()
+	// run
 	case "run_list":
 		runList()
 	case "run_create":
 		runCreate()
 	case "run_destroy":
 		runDestoy()
+	case "run_get":
+		runGet()
+	// user
 	case "whoami":
 		userGetMe()
 	case "sample":

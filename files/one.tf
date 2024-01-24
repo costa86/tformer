@@ -2,7 +2,7 @@
 
 variable "name_one" {
   type    = string
-  default = "one"
+  default = "one more"
 }
 
 variable "name_count_one" {

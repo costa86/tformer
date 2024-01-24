@@ -3,6 +3,7 @@ package configversion
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log"
 
 	"github.com/costa86/tformer/helper"
@@ -12,6 +13,15 @@ import (
 	"github.com/hashicorp/go-tfe"
 	"github.com/rodaine/table"
 )
+
+func Get(client *tfe.Client, id string) {
+	ctx := context.Background()
+	cv, err := client.ConfigurationVersions.Read(ctx, id)
+	helper.HandleError(err)
+	cvJSON, err := json.MarshalIndent(cv, "", "    ")
+	helper.HandleError(err)
+	log.Printf("%s", cvJSON)
+}
 
 func List(client *tfe.Client, workspaceName, org string) {
 

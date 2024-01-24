@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 
+	"github.com/costa86/tformer/helper"
 	"github.com/hashicorp/go-tfe"
 )
 
@@ -17,9 +18,7 @@ func ReadCurrent(client *tfe.Client) {
 		log.Fatal(err)
 	}
 	userJSON, err := json.MarshalIndent(user, "", "    ")
-	if err != nil {
-		log.Fatal(err)
-	}
+	helper.HandleError(err)
 
 	log.Printf("%s", userJSON)
 
