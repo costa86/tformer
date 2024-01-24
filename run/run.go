@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/costa86/tformer/helper"
+
 	"github.com/costa86/tformer/workspace"
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-tfe"
@@ -45,19 +46,26 @@ func createOrReadConfigurationVersion(ctx context.Context, client *tfe.Client, w
 }
 
 func CreateOrDestroy(client tfe.Client, workspaceId, message string, dir string, autoApply bool, isDestroy bool, cvId string) *tfe.Run {
+	var configurationId string
 	ctx := context.Background()
 	ws, err := client.Workspaces.ReadByID(ctx, workspaceId)
 	helper.HandleError(err)
 
-	var configurationId string
+	cvList, err := client.ConfigurationVersions.List(ctx, ws.ID, &tfe.ConfigurationVersionListOptions{})
+	helper.HandleError(err)
 
-	if cvId == "latest" {
-		run := getLatest(&client, ws.ID)
-		configurationId = run.ConfigurationVersion.ID
-		fmt.Println("Using Configuration Version from the latest Run: ", color.BlueString(string(run.ID)))
-
+	if len(cvList.Items) == 0 {
+		configurationId = ""
+		fmt.Println("No Configuration Versions found...A new one will be created")
 	} else {
-		configurationId = cvId
+		if cvId == "latest" {
+			run := getLatest(&client, ws.ID)
+			configurationId = run.ConfigurationVersion.ID
+			fmt.Println("Using Configuration Version from the latest Run: ", color.BlueString(string(run.ID)))
+
+		} else {
+			configurationId = cvId
+		}
 	}
 
 	cv, err := createOrReadConfigurationVersion(ctx, &client, workspaceId, configurationId, dir, false)
