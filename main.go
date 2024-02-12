@@ -21,6 +21,8 @@ import (
 
 var placeholder = "sample"
 var configFile = "config.yaml"
+var token = flag.String("token", placeholder, "authentication API token")
+var organization = flag.String("org", placeholder, "organization")
 
 func getTfConfig() helper.TfConfig {
 	yamlFile, err := os.ReadFile(configFile)
@@ -32,6 +34,12 @@ func getTfConfig() helper.TfConfig {
 	err = yaml.Unmarshal(yamlFile, &tfConfig)
 	if err != nil {
 		panic(err)
+	}
+	if *token != placeholder {
+		tfConfig.Token = *token
+	}
+	if *organization != placeholder {
+		tfConfig.Organization = *organization
 	}
 	return tfConfig
 }
